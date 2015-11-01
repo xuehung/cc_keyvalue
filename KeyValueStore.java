@@ -56,6 +56,10 @@ public class KeyValueStore extends Verticle {
 				Integer region = Integer.parseInt(map.get("region"));
 
 				Long timestamp = Long.parseLong(map.get("timestamp"));
+
+System.out.println(String.format("[put]%s/%s/%d\n", key, value, timestamp));
+
+
 				/* TODO: You will need to adjust the timestamp here for some consistency levels */
 				StoreValue sv = new StoreValue(timestamp, value);
 
@@ -115,10 +119,13 @@ public class KeyValueStore extends Verticle {
 				String key = map.get("key");
 				final Long timestamp = Long.parseLong(map.get("timestamp"));
 
+System.out.println(String.format("[ahead]%s/%d\n", key, timestamp));
+
                 Semaphore lock = getLock(key);
 		try {
                 lock.acquire();
 		} catch (InterruptedException e) {e.printStackTrace();}
+System.out.println(String.format("[ahead.lock]%s/%d\n", key, timestamp));
 
 
 				req.response().putHeader("Content-Type", "text/plain");
@@ -134,8 +141,11 @@ public class KeyValueStore extends Verticle {
 				String key = map.get("key");
 				final Long timestamp = Long.parseLong(map.get("timestamp"));
 
+System.out.println(String.format("[complete]%s/%d\n", key, timestamp));
+
                 Semaphore lock = getLock(key);
                 lock.release();
+System.out.println(String.format("[complete.release]%s/%d\n", key, timestamp));
 
 
 				req.response().putHeader("Content-Type", "text/plain");
