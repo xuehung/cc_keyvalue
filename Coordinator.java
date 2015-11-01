@@ -58,6 +58,7 @@ public class Coordinator extends Verticle {
 	private static final String coordinatorSING = "ec2-52-91-191-121.compute-1.amazonaws.com";
 
     private static final String[] coordinatorDNSs = new String[3];
+    private static final String[] datacenterDNSs = new String[3];
 
 
     private static int count = 0;
@@ -76,12 +77,13 @@ public class Coordinator extends Verticle {
 System.out.println(String.format("[send ahead]%s/%s/%d\n", key, r.val, r.timestamp));
 		// Put
 		for (int i = 0 ; i < 3 ; i++) {
-			KeyValueLib.PUT(Coordinator.coordinatorDNSs[i],
+			KeyValueLib.PUT(Coordinator.datacenterDNSs[i],
 					key, r.val, r.timestamp + "", Coordinator.consistencyType);
 		}
 		// COMPLATE all datastores
 System.out.println(String.format("[send complete]%s/%s/%d\n", key, r.val, r.timestamp));
 		KeyValueLib.COMPLETE(key, r.timestamp + "");
+System.out.println(String.format("[send complete finish]%s/%s/%d\n", key, r.val, r.timestamp));
 	} catch (IOException e) {e.printStackTrace();}
     }
 
@@ -130,7 +132,7 @@ System.out.println(String.format("[send complete]%s/%s/%d\n", key, r.val, r.time
                                 try {
                                     Request r = Coordinator.map.get(key).take();
                                     if (r.type.equals(Coordinator.GET)) {
-                                        String output = KeyValueLib.GET(Coordinator.coordinatorDNSs[KeyValueLib.region - 1],
+                                        String output = KeyValueLib.GET(Coordinator.datacenterDNSs[KeyValueLib.region - 1],
                                             key, r.timestamp + "", consistencyType);
 System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
 					r.req.response().end(output);
@@ -175,9 +177,12 @@ System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
 	public void start() {
 
 
-        Coordinator.coordinatorDNSs[0] = dataCenterUSE;
-        Coordinator.coordinatorDNSs[1] = dataCenterUSW;
-        Coordinator.coordinatorDNSs[2] = dataCenterSING;
+        Coordinator.coordinatorDNSs[0] = coordinatorUSE;
+        Coordinator.coordinatorDNSs[1] = coordinatorUSW;
+        Coordinator.coordinatorDNSs[2] = coordinatorSING;
+        Coordinator.datacenterDNSs[0] = dataCenterUSE;
+        Coordinator.datacenterDNSs[1] = dataCenterUSW;
+        Coordinator.datacenterDNSs[2] = dataCenterSING;
 
 		KeyValueLib.dataCenters.put(dataCenterUSE, 1);
 		KeyValueLib.dataCenters.put(dataCenterUSW, 2);
@@ -209,6 +214,7 @@ System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
                         int target_coordinator_idx = Coordinator.getHash(key);
                         if (target_coordinator_idx != KeyValueLib.region) {
 				try {
+System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
                             KeyValueLib.FORWARD(
                                 Coordinator.coordinatorDNSs[target_coordinator_idx - 1],
                                 key, value, timestamp + "");
