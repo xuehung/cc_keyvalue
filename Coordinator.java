@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.MultiMap;
@@ -69,21 +70,31 @@ public class Coordinator extends Verticle {
 	private static HashMap<String, BlockingQueue<Request>> map = new HashMap<String, BlockingQueue<Request>>();
 
 
-    private static void strongHandler(String key, Request r) {
+    private static void strongHandler(final String key, final Request r) {
+	final CountDownLatch lock = new CountDownLatch(3);
         // AHEAD all datastores
 	try {
 
 System.out.println(String.format("[send ahead]%s/%s/%d\n", key, r.val, r.timestamp));
 		// Put
 		for (int i = 0 ; i < 3 ; i++) {
-			KeyValueLib.PUT(Coordinator.datacenterDNSs[i],
+			final String dns = Coordinator.datacenterDNSs[i];
+                	Thread t = new Thread(new Runnable() {
+                    	public void run() {
+				try{
+				KeyValueLib.PUT(dns, 
 					key, r.val, r.timestamp + "", Coordinator.consistencyType);
+				lock.countDown();
+				} catch (IOException e) {e.printStackTrace();}
+			}});
+			t.start();
 		}
+		lock.await();
 		// COMPLATE all datastores
 System.out.println(String.format("[send complete]%s/%s/%d\n", key, r.val, r.timestamp));
 		KeyValueLib.COMPLETE(key, r.timestamp + "");
 System.out.println(String.format("[send complete finish]%s/%s/%d\n", key, r.val, r.timestamp));
-	} catch (IOException e) {e.printStackTrace();}
+	} catch (Exception e) {e.printStackTrace();}
     }
 
     private static void causalHandler(String key, Request r) {
@@ -129,18 +140,27 @@ System.out.println(String.format("[send complete finish]%s/%s/%d\n", key, r.val,
                         while(true) {
                             while (Coordinator.map.get(key).size() > 0) {
                                 try {
-                                    Request r = Coordinator.map.get(key).take();
+                                    final Request r = Coordinator.map.get(key).take();
                                     if (r.type.equals(Coordinator.GET)) {
-                                        String output = KeyValueLib.GET(Coordinator.datacenterDNSs[KeyValueLib.region - 1],
-                                            key, r.timestamp + "", consistencyType);
-System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
-					r.req.response().end(output);
+					Thread t = new Thread(new Runnable() {
+                                        public void run() {
+						try {
+                                        	String output = KeyValueLib.GET(Coordinator.datacenterDNSs[KeyValueLib.region - 1],
+                                           	key, r.timestamp + "", consistencyType);
+						System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
+						r.req.response().end(output);
+                                		} catch (IOException e) {
+                                    			System.out.println("IOException");
+						}
+						}});
+						t.start();
                                     } else {
                                         String consistency = Coordinator.consistencyType;
                                         if (consistency.equals("strong")) {
                                             strongHandler(key, r);
                                         } else if (consistency.equals("causal")) {
-                                            causalHandler(key, r);
+                                            strongHandler(key, r);
+                                            //causalHandler(key, r);
                                         } else if (consistency.equals("eventual")) {
                                             eventualHandler(key, r);
                                         } else {
@@ -149,8 +169,6 @@ System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
                                     }
                                 } catch (InterruptedException e) {
                                     System.out.printf("take failed");
-                                } catch (IOException e) {
-                                    System.out.println("IOException");
                                 }
                             }
                             if (Coordinator.addOrRemove(key, null)) break;
@@ -222,6 +240,7 @@ System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
                         } else {
                             if (forwarded != null) {
                                 final Long newTimestamp = Skews.handleSkew(timestamp, Integer.parseInt(forwardedRegion));
+				System.out.println(String.format("[put]%s/%s/%d/%s\n", key, value, newTimestamp,forwarded));
 				Coordinator.addOrRemove(key, new Request(Coordinator.PUT, value, newTimestamp));
                             } else {
 				try {
