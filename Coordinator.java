@@ -73,12 +73,14 @@ public class Coordinator extends Verticle {
 	try {
         	KeyValueLib.AHEAD(key, r.timestamp + "");
 
+System.out.println(String.format("[send ahead]%s/%s/%d\n", key, r.val, r.timestamp));
 		// Put
 		for (int i = 0 ; i < 3 ; i++) {
 			KeyValueLib.PUT(Coordinator.coordinatorDNSs[i],
 					key, r.val, r.timestamp + "", Coordinator.consistencyType);
 		}
 		// COMPLATE all datastores
+System.out.println(String.format("[send complete]%s/%s/%d\n", key, r.val, r.timestamp));
 		KeyValueLib.COMPLETE(key, r.timestamp + "");
 	} catch (IOException e) {e.printStackTrace();}
     }
@@ -131,7 +133,7 @@ public class Coordinator extends Verticle {
                                         String output = KeyValueLib.GET(Coordinator.coordinatorDNSs[KeyValueLib.region - 1],
                                             key, r.timestamp + "", consistencyType);
 System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
-					req.response().end(output);
+					r.req.response().end(output);
                                     } else {
                                         String consistency = Coordinator.consistencyType;
                                         if (consistency.equals("strong")) {
