@@ -1,3 +1,4 @@
+import java.util.Comparator;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -6,6 +7,7 @@ import java.util.Queue;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.Collections;
 
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.MultiMap;
@@ -97,6 +99,12 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 			                lock.acquire();
 				} catch (InterruptedException e) {e.printStackTrace();}
 				ArrayList<StoreValue> values = store.get(key);
+				Collections.sort(values, new Comparator<StoreValue>(){
+					@Override
+                    			public int compare(StoreValue a, StoreValue b) {
+                        			return (int)(a.getTimestamp() - b.getTimestamp());
+                    			}
+				});
 
 				/* Do NOT change the format the response. It will return a string of
 				 * values separated by spaces */
@@ -167,8 +175,8 @@ System.out.println(String.format("[complete.release]%s/%d\n", key, timestamp));
 		routeMatcher.get("/reset", new Handler<HttpServerRequest>() {
 			@Override
 			public void handle(final HttpServerRequest req) {
-				keyValueStore.store.clear();
-				keyValueStore.keyLock.clear();
+				store.clear();
+				keyLock.clear();
 				req.response().putHeader("Content-Type", "text/plain");
 				req.response().end();
 				req.response().close();
