@@ -73,12 +73,14 @@ public class Coordinator extends Verticle {
 	try {
         	KeyValueLib.AHEAD(key, r.timestamp + "");
 
+System.out.println(String.format("[send ahead]%s/%s/%d\n", key, r.val, r.timestamp));
 		// Put
 		for (int i = 0 ; i < 3 ; i++) {
-			KeyValueLib.PUT(Coordinator.coordinatorDNSs[0],
+			KeyValueLib.PUT(Coordinator.coordinatorDNSs[i],
 					key, r.val, r.timestamp + "", Coordinator.consistencyType);
 		}
 		// COMPLATE all datastores
+System.out.println(String.format("[send complete]%s/%s/%d\n", key, r.val, r.timestamp));
 		KeyValueLib.COMPLETE(key, r.timestamp + "");
 	} catch (IOException e) {e.printStackTrace();}
     }
@@ -128,8 +130,10 @@ public class Coordinator extends Verticle {
                                 try {
                                     Request r = Coordinator.map.get(key).take();
                                     if (r.type.equals(Coordinator.GET)) {
-                                        KeyValueLib.GET(Coordinator.coordinatorDNSs[KeyValueLib.region - 1],
+                                        String output = KeyValueLib.GET(Coordinator.coordinatorDNSs[KeyValueLib.region - 1],
                                             key, r.timestamp + "", consistencyType);
+System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
+					r.req.response().end(output);
                                     } else {
                                         String consistency = Coordinator.consistencyType;
                                         if (consistency.equals("strong")) {
@@ -201,6 +205,7 @@ public class Coordinator extends Verticle {
 					/* TODO: Add code for PUT request handling here
 					 * Each operation is handled in a new thread.
 					 * Use of helper functions is highly recommended */
+			System.out.println(String.format("[put]%s/%s/%d/%s\n", key, value, timestamp,forwarded));
                         int target_coordinator_idx = Coordinator.getHash(key);
                         if (target_coordinator_idx != KeyValueLib.region) {
 				try {
