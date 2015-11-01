@@ -49,13 +49,13 @@ public class Coordinator extends Verticle {
 	 * three dataCenter instances. Be sure to match the regions with their DNS!
 	 * Do the same for the 3 Coordinators as well.
 	 */
-	private static final String dataCenterUSE = "";
-	private static final String dataCenterUSW = "";
-	private static final String dataCenterSING = "";
+	private static final String dataCenterUSE = "ec2-52-91-249-194.compute-1.amazonaws.com";
+	private static final String dataCenterUSW = "ec2-54-152-190-176.compute-1.amazonaws.com";
+	private static final String dataCenterSING = "ec2-54-208-224-22.compute-1.amazonaws.com";
 
-	private static final String coordinatorUSE = "";
-	private static final String coordinatorUSW = "";
-	private static final String coordinatorSING = "";
+	private static final String coordinatorUSE = "ec2-54-85-111-215.compute-1.amazonaws.com";
+	private static final String coordinatorUSW = "ec2-54-165-89-60.compute-1.amazonaws.com";
+	private static final String coordinatorSING = "ec2-52-91-191-121.compute-1.amazonaws.com";
 
     private static final String[] coordinatorDNSs = new String[3];
 
