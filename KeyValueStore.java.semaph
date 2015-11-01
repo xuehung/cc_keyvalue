@@ -7,7 +7,6 @@ import java.util.Queue;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.CountDownLatch;
 import java.util.Collections;
 
 import org.vertx.java.core.Handler;
@@ -19,22 +18,18 @@ import org.vertx.java.platform.Verticle;
 
 public class KeyValueStore extends Verticle {
 	private HashMap<String, ArrayList<StoreValue>> store = null;
-	private HashMap<String, CountDownLatch> keyLock = null;
+	private HashMap<String, Semaphore> keyLock = null;
 
 	public KeyValueStore() {
 		store = new HashMap<String, ArrayList<StoreValue>>();
-		keyLock = new HashMap<String, CountDownLatch>();
+		keyLock = new HashMap<String, Semaphore>();
 	}
 
-    private synchronized CountDownLatch getLock(String key, boolean increase) {
+    private synchronized Semaphore getLock(String key) {
         if (!keyLock.containsKey(key)) {
-            CountDownLatch lock = new CountDownLatch(1);
+            Semaphore lock = new Semaphore(1);
             keyLock.put(key, lock);
-        } else {
-	    int count = (int)(keyLock.get(key).getCount()) + 1;
-            CountDownLatch lock = new CountDownLatch(count);
-            keyLock.put(key, lock);
-	}
+        }
         return keyLock.get(key);
     }
 
@@ -63,8 +58,6 @@ public class KeyValueStore extends Verticle {
 				Integer region = Integer.parseInt(map.get("region"));
 
 				Long timestamp = Long.parseLong(map.get("timestamp"));
-
-				timestamp = Skews.handleSkew(timestamp, region);
 
 System.out.println(String.format("[put]%s/%s/%d\n", key, value, timestamp));
 
@@ -100,10 +93,10 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 				 * Remember that you may need to implement some locking on certain consistency levels */
 				System.out.println(String.format("[get]%s/%d\n", key, timestamp));
 
-		                CountDownLatch lock = getLock(key, false);
+		                Semaphore lock = getLock(key);
 				try {
 					System.out.println(String.format("[get.lock]%s/%d\n", key, timestamp));
-			                lock.await();
+			                lock.acquire();
 				} catch (InterruptedException e) {e.printStackTrace();}
 				ArrayList<StoreValue> values = store.get(key);
 				Collections.sort(values, new Comparator<StoreValue>(){
@@ -122,7 +115,8 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 					}
 				}
 
-				System.out.println(String.format("[get.release]%s/%s/%d\n", key, response, timestamp));
+                		lock.release();
+
 
 				req.response().putHeader("Content-Type", "text/plain");
 				if (response != null)
@@ -145,7 +139,12 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 
 System.out.println(String.format("[ahead]%s/%d\n", key, timestamp));
 
-                CountDownLatch lock = getLock(key, true);
+                Semaphore lock = getLock(key);
+		try {
+                lock.acquire();
+		} catch (InterruptedException e) {e.printStackTrace();}
+System.out.println(String.format("[ahead.lock]%s/%d\n", key, timestamp));
+
 
 				req.response().putHeader("Content-Type", "text/plain");
 				req.response().end();
@@ -162,9 +161,9 @@ System.out.println(String.format("[ahead]%s/%d\n", key, timestamp));
 
 System.out.println(String.format("[complete]%s/%d\n", key, timestamp));
 
-                CountDownLatch lock = getLock(key, false);
-                lock.countDown();
-System.out.println(String.format("[complete.countdown]%s/%d\n", key, timestamp));
+                Semaphore lock = getLock(key);
+                lock.release();
+System.out.println(String.format("[complete.release]%s/%d\n", key, timestamp));
 
 
 				req.response().putHeader("Content-Type", "text/plain");
