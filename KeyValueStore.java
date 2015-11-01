@@ -2,6 +2,8 @@ import java.util.Comparator;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.TimeZone;
 import java.util.Queue;
 import java.util.LinkedList;
@@ -19,24 +21,45 @@ import org.vertx.java.platform.Verticle;
 
 public class KeyValueStore extends Verticle {
 	private HashMap<String, ArrayList<StoreValue>> store = null;
-	private HashMap<String, CountDownLatch> keyLock = null;
+	private HashMap<String, Set<Long>> keyLock = null;
+	Semaphore keyLockLock = new Semaphore(1);
 
 	public KeyValueStore() {
 		store = new HashMap<String, ArrayList<StoreValue>>();
-		keyLock = new HashMap<String, CountDownLatch>();
+		keyLock = new HashMap<String, Set<Long>>();
 	}
 
-    private synchronized CountDownLatch getLock(String key, boolean increase) {
-        if (!keyLock.containsKey(key)) {
-            CountDownLatch lock = new CountDownLatch(1);
-            keyLock.put(key, lock);
-        } else {
-	    int count = (int)(keyLock.get(key).getCount()) + 1;
-            CountDownLatch lock = new CountDownLatch(count);
-            keyLock.put(key, lock);
+    private void changeLock(String key, Long timestamp, boolean increase) {
+	try{
+	keyLockLock.acquire();
+	if (!keyLock.containsKey(key)) keyLock.put(key, new HashSet<Long>());
+	if (increase) {
+		keyLock.get(key).add(timestamp);
+		System.out.println(String.format("add %d into key %s", timestamp, key));
+	} else {
+		keyLock.get(key).remove(timestamp);
+		System.out.println(String.format("remove %d from key %s", timestamp, key));
 	}
-        return keyLock.get(key);
+	System.out.println(String.format("key %s with size = %d", key, keyLock.get(key).size()));
+	keyLockLock.release();
+	} catch (InterruptedException e) {e.printStackTrace();}
     }
+
+	private ArrayList<StoreValue> getValue(String key, Long timestamp) {
+		ArrayList<StoreValue> value = null;
+		while (true) {
+			try {
+			keyLockLock.acquire();
+			if (keyLock.get(key).size() == 0) {
+				value = store.get(key);
+			}
+			keyLockLock.release();
+			if (value != null) return value;
+				Thread.sleep(500);
+			} catch (InterruptedException e) {e.printStackTrace();}
+		}
+	}
+
 
     private synchronized void addValue(String key, StoreValue val) {
         if (!store.containsKey(key)) {
@@ -100,12 +123,7 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 				 * Remember that you may need to implement some locking on certain consistency levels */
 				System.out.println(String.format("[get]%s/%d\n", key, timestamp));
 
-		                CountDownLatch lock = getLock(key, false);
-				try {
-					System.out.println(String.format("[get.lock]%s/%d\n", key, timestamp));
-			                lock.await();
-				} catch (InterruptedException e) {e.printStackTrace();}
-				ArrayList<StoreValue> values = store.get(key);
+				ArrayList<StoreValue> values = getValue(key, timestamp);
 				Collections.sort(values, new Comparator<StoreValue>(){
 					@Override
                     			public int compare(StoreValue a, StoreValue b) {
@@ -145,7 +163,7 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 
 System.out.println(String.format("[ahead]%s/%d\n", key, timestamp));
 
-                CountDownLatch lock = getLock(key, true);
+                		changeLock(key, timestamp, true);
 
 				req.response().putHeader("Content-Type", "text/plain");
 				req.response().end();
@@ -162,8 +180,8 @@ System.out.println(String.format("[ahead]%s/%d\n", key, timestamp));
 
 System.out.println(String.format("[complete]%s/%d\n", key, timestamp));
 
-                CountDownLatch lock = getLock(key, false);
-                lock.countDown();
+                		changeLock(key, timestamp, false);
+
 System.out.println(String.format("[complete.countdown]%s/%d\n", key, timestamp));
 
 
