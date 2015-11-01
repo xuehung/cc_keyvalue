@@ -72,7 +72,6 @@ public class Coordinator extends Verticle {
     private static void strongHandler(String key, Request r) {
         // AHEAD all datastores
 	try {
-        	KeyValueLib.AHEAD(key, r.timestamp + "");
 
 System.out.println(String.format("[send ahead]%s/%s/%d\n", key, r.val, r.timestamp));
 		// Put
@@ -215,6 +214,7 @@ System.out.println(String.format("[get]%s/%s/%d\n", key, output, r.timestamp));
                         if (target_coordinator_idx != KeyValueLib.region) {
 				try {
 System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
+        		   KeyValueLib.AHEAD(key, timestamp + "");
                             KeyValueLib.FORWARD(
                                 Coordinator.coordinatorDNSs[target_coordinator_idx - 1],
                                 key, value, timestamp + "");
@@ -224,6 +224,9 @@ System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
                                 final Long newTimestamp = Skews.handleSkew(timestamp, Integer.parseInt(forwardedRegion));
 				Coordinator.addOrRemove(key, new Request(Coordinator.PUT, value, newTimestamp));
                             } else {
+				try {
+        		        	KeyValueLib.AHEAD(key, timestamp + "");
+				} catch (IOException e) {e.printStackTrace();}
 				Coordinator.addOrRemove(key, new Request(Coordinator.PUT, value, timestamp));
 				}
                         }
@@ -271,6 +274,7 @@ System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
 		routeMatcher.get("/reset", new Handler<HttpServerRequest>() {
 			@Override
 			public void handle(final HttpServerRequest req) {
+System.out.println("========================");
 				KeyValueLib.RESET();
 				req.response().end();
 			}
