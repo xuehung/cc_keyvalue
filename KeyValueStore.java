@@ -66,6 +66,8 @@ System.out.println(String.format("[put]%s/%s/%d\n", key, value, timestamp));
 				/* TODO: Add code to store the object here. You may need to adjust the timestamp */
                 		addValue(key, sv);
 
+System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp));
+
 				String response = "stored";
 				req.response().putHeader("Content-Type", "text/plain");
 				req.response().putHeader("Content-Length",
@@ -82,13 +84,18 @@ System.out.println(String.format("[put]%s/%s/%d\n", key, value, timestamp));
 				String consistency = map.get("consistency");
 				final Long timestamp = Long.parseLong(map.get("timestamp"));
 
+				Thread t = new Thread(new Runnable() {
+					public void run() {
+
 				/* TODO: Add code here to get the list of StoreValue associated with the key
 				 * Remember that you may need to implement some locking on certain consistency levels */
+				System.out.println(String.format("[get]%s/%d\n", key, timestamp));
 
-                Semaphore lock = getLock(key);
-		try {
-                lock.acquire();
-		} catch (InterruptedException e) {e.printStackTrace();}
+		                Semaphore lock = getLock(key);
+				try {
+					System.out.println(String.format("[get.lock]%s/%d\n", key, timestamp));
+			                lock.acquire();
+				} catch (InterruptedException e) {e.printStackTrace();}
 				ArrayList<StoreValue> values = store.get(key);
 
 				/* Do NOT change the format the response. It will return a string of
@@ -100,7 +107,7 @@ System.out.println(String.format("[put]%s/%s/%d\n", key, value, timestamp));
 					}
 				}
 
-                lock.release();
+                		lock.release();
 
 
 				req.response().putHeader("Content-Type", "text/plain");
@@ -109,6 +116,9 @@ System.out.println(String.format("[put]%s/%s/%d\n", key, value, timestamp));
 							String.valueOf(response.length()));
 				req.response().end(response);
 				req.response().close();
+					}
+				});
+				t.start();
 			}
 		});
 		// Handler for when the AHEAD is called
