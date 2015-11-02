@@ -152,17 +152,16 @@ System.out.println(String.format("[send complete finish]%s/%s/%d\n", key, r.val,
                                 		} catch (IOException e) {
                                     			System.out.println("IOException");
 						}
-						}});
-						t.start();
+					}});
+					t.start();
                                     } else {
                                         String consistency = Coordinator.consistencyType;
                                         if (consistency.equals("strong")) {
                                             strongHandler(key, r);
                                         } else if (consistency.equals("causal")) {
                                             strongHandler(key, r);
-                                            //causalHandler(key, r);
                                         } else if (consistency.equals("eventual")) {
-                                            eventualHandler(key, r);
+                                            strongHandler(key, r);
                                         } else {
                                             throw new RuntimeException("no such consistency: "+ consistency);
                                         }
@@ -267,9 +266,19 @@ System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
 					/* TODO: Add code for GET requests handling here
 					 * Each operation is handled in a new thread.
 					 * Use of helper functions is highly recommended */
+					if (consistencyType.equals("eventual")) {
+						try {
+                                        	String output = KeyValueLib.GET(
+							Coordinator.datacenterDNSs[KeyValueLib.region - 1],
+                                           		key, timestamp + "", consistencyType);
+						req.response().end(output);
+                                		} catch (IOException e) {
+                                    			System.out.println("IOException");
+						}
+					} else {
 						Coordinator.addOrRemove(key, new Request(Coordinator.GET, timestamp, req));
 					}
-				});
+				}});
 				t.start();
 			}
 		});
