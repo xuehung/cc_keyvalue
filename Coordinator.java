@@ -82,6 +82,7 @@ System.out.println(String.format("[send ahead]%s/%s/%d\n", key, r.val, r.timesta
                 	Thread t = new Thread(new Runnable() {
                     	public void run() {
 				try{
+				System.out.println(dns);
 				KeyValueLib.PUT(dns, 
 					key, r.val, r.timestamp + "", Coordinator.consistencyType);
 				lock.countDown();
@@ -155,6 +156,8 @@ System.out.println(String.format("[send complete finish]%s/%s/%d\n", key, r.val,
 					}});
 					t.start();
                                     } else {
+					Thread t = new Thread(new Runnable() {
+                                        public void run() {
                                         String consistency = Coordinator.consistencyType;
                                         if (consistency.equals("strong")) {
                                             strongHandler(key, r);
@@ -165,6 +168,8 @@ System.out.println(String.format("[send complete finish]%s/%s/%d\n", key, r.val,
                                         } else {
                                             throw new RuntimeException("no such consistency: "+ consistency);
                                         }
+					}});
+					t.start();
                                     }
                                 } catch (InterruptedException e) {
                                     System.out.printf("take failed");
@@ -302,7 +307,7 @@ System.out.println(Coordinator.coordinatorDNSs[target_coordinator_idx - 1]);
 		routeMatcher.get("/reset", new Handler<HttpServerRequest>() {
 			@Override
 			public void handle(final HttpServerRequest req) {
-System.out.println("========================");
+				System.out.println("========================");
 				KeyValueLib.RESET();
 				req.response().end();
 			}
