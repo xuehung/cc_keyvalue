@@ -20,6 +20,7 @@ import org.vertx.java.core.http.RouteMatcher;
 import org.vertx.java.platform.Verticle;
 
 public class KeyValueStore extends Verticle {
+	static int count = 0;
 	private HashMap<String, ArrayList<StoreValue>> store = null;
 	private HashMap<String, Set<Long>> keyLock = null;
 	Semaphore keyLockLock = new Semaphore(1);
@@ -66,6 +67,7 @@ public class KeyValueStore extends Verticle {
             store.put(key, new ArrayList<StoreValue>());
         }
         store.get(key).add(val);
+	System.out.println(store.get(key).toString());
     }
 
 	@Override
@@ -113,7 +115,7 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 			public void handle(final HttpServerRequest req) {
 				MultiMap map = req.params();
 				final String key = map.get("key");
-				String consistency = map.get("consistency");
+				final String consistency = map.get("consistency");
 				final Long timestamp = Long.parseLong(map.get("timestamp"));
 
 				Thread t = new Thread(new Runnable() {
@@ -122,14 +124,20 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 				/* TODO: Add code here to get the list of StoreValue associated with the key
 				 * Remember that you may need to implement some locking on certain consistency levels */
 				System.out.println(String.format("[get]%s/%d\n", key, timestamp));
-
-				ArrayList<StoreValue> values = getValue(key, timestamp);
+				ArrayList<StoreValue> values = null;
+				if (consistency.equals("strong")) {
+					values = getValue(key, timestamp);
+				} else {
+					values = store.get(key);
+				}
+				if (values != null && !consistency.equals("eventual")) {
 				Collections.sort(values, new Comparator<StoreValue>(){
 					@Override
                     			public int compare(StoreValue a, StoreValue b) {
                         			return (int)(a.getTimestamp() - b.getTimestamp());
                     			}
 				});
+				}
 
 				/* Do NOT change the format the response. It will return a string of
 				 * values separated by spaces */
@@ -139,8 +147,8 @@ System.out.println(String.format("[put.finish]%s/%s/%d\n", key, value, timestamp
 						response = response + val.getValue() + " ";
 					}
 				}
-
-				System.out.println(String.format("[get.release]%s/%s/%d\n", key, response, timestamp));
+				System.out.println(String.format("^^^^^^^^^^[get.release]%s/%s/%d\n", key, response, timestamp));
+			
 
 				req.response().putHeader("Content-Type", "text/plain");
 				if (response != null)
@@ -194,8 +202,13 @@ System.out.println(String.format("[complete.countdown]%s/%d\n", key, timestamp))
 		routeMatcher.get("/reset", new Handler<HttpServerRequest>() {
 			@Override
 			public void handle(final HttpServerRequest req) {
+				System.out.println("====================");
+				KeyValueStore.count++;
+				if (KeyValueStore.count != -6) {
+				System.out.println("====================");
 				store.clear();
 				keyLock.clear();
+				}
 				req.response().putHeader("Content-Type", "text/plain");
 				req.response().end();
 				req.response().close();
